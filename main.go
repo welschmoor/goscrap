@@ -1,13 +1,18 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 )
 
+type requestResult struct {
+	url    string
+	status string
+}
+
 func main() {
-	var results = map[string]string{}
+	c := make(chan requestResult)
+	results := make(map[string]string)
 	urls := []string{
 		"https://www.amazon.com/",
 		"https://www.reddit.com/",
@@ -15,25 +20,27 @@ func main() {
 		"https://www.instagram.com/",
 		"https://www.airbnb.com",
 	}
-	for _, each := range urls {
-		result := "OK"
-		err := VisitURL(each)
-		if err != nil {
-			result = "FAILED"
-		}
-		results[each] = result
+
+	for _, url := range urls {
+		go VisitURL(url, c)
 	}
-	for url, responseStatus := range results {
-		fmt.Println(url, responseStatus)
+
+	for i := 0; i < len(urls); i++ {
+		result := <-c
+		results[result.url] = result.status
+	}
+
+	for url, status := range results {
+		fmt.Println(url, status)
 	}
 }
 
 // this function visits URL using http package
-func VisitURL(url string) {
-	fmt.Println("<><>", url)
+func VisitURL(url string, c chan<- requestResult) {
 	resp, err := http.Get(url)
 	if err != nil || resp.StatusCode >= 400 {
-		return errors.New("response failed")
+		c <- requestResult{url: url, status: "FAILED"}
+	} else {
+		c <- requestResult{url: url, status: "OK"}
 	}
-	return nil
 }
